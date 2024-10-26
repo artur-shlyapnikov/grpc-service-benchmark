@@ -9,7 +9,7 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: "1.21"
-      - name: Build
+      - name: Build grpc server
         run: make build
 
       - name: Build docker image
