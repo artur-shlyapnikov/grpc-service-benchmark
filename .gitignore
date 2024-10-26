@@ -22,3 +22,9 @@ go.work
 
 # Build artifacts
 grpc-perf-lab/bin/
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+tests/jmeter-dsl/app/target
