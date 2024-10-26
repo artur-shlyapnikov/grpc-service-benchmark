@@ -30,20 +30,14 @@ if ! echo "$GO_VERSION $GO_MIN_VERSION" | awk '{exit !($1 >= $2)}'; then
     exit 1
 fi
 
-echo "Checking protoc installation..."
-if ! command -v protoc >/dev/null 2>&1; then
-    echo "Error: protoc is not installed" >&2
-    echo "Please install protoc first: https://grpc.io/docs/protoc-installation/" >&2
-    exit 1
-fi
-
 echo "Installing development tools..."
 
 echo "Installing Go tools..."
 for tool in \
     "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}" \
     "google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}" \
-    "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+    "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
+    "github.com/fullstorydev/grpcurl/cmd/grpcurl@latest"
 do
     echo "Installing $tool..."
     go install -v "$tool"
@@ -83,6 +77,21 @@ if ! command -v k6 >/dev/null 2>&1; then
     esac
 fi
 
+required_tools=("grpcurl" "protoc" "protoc-gen-go" "protoc-gen-go-grpc" "golangci-lint" "k6")
+missing_tools=()
+
+for tool in "${required_tools[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        missing_tools+=("$tool")
+    fi
+done
+
+if [ ${#missing_tools[@]} -ne 0 ]; then
+    echo "Error: The following required tools are missing:"
+    printf '%s\n' "${missing_tools[@]}"
+    exit 1
+fi
+
 echo -e "\nInstalled versions:"
 echo "Go: $(go version)"
 echo "protoc: $(protoc --version)"
@@ -90,10 +99,6 @@ echo "protoc-gen-go: $(protoc-gen-go --version 2>/dev/null || echo 'Not found!')
 echo "protoc-gen-go-grpc: $(protoc-gen-go-grpc --version 2>/dev/null || echo 'Not found!')"
 echo "golangci-lint: $(golangci-lint --version)"
 echo "k6: $(k6 version)"
-
-echo -e "\nInstallation directories:"
-echo "protoc-gen-go: $(which protoc-gen-go 2>/dev/null || echo 'Not found!')"
-echo "protoc-gen-go-grpc: $(which protoc-gen-go-grpc 2>/dev/null || echo 'Not found!')"
-echo "golangci-lint: $(which golangci-lint 2>/dev/null || echo 'Not found!')"
+echo "grpcurl: $(grpcurl --version)"
 
 echo -e "\nAll tools installed successfully!"
