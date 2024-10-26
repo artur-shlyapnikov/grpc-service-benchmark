@@ -1,22 +1,3 @@
-/*
- *
- * Copyright 2015 gRPC authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
-
-// Package main implements a server for Greeter service.
 package main
 
 import (
@@ -25,34 +6,86 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"time"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
-	port = flag.Int("port", 50051, "The server port")
+	port        = flag.Int("port", 50051, "The server port")
+	metricsPort = flag.Int("metrics-port", 2112, "The metrics port")
+
+	// application-specific metrics
+	requestsProcessed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "grpc_server_requests_processed_total",
+			Help: "The total number of processed gRPC requests",
+		},
+		[]string{"method"},
+	)
+
+	requestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "grpc_server_request_duration_seconds",
+			Help:    "Request duration in seconds",
+			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{"method"},
+	)
 )
 
-// server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedGreeterServer
 }
 
-// SayHello implements helloworld.GreeterServer
-func (s *server) SayHello(_ context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", in.GetName())
-	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
+func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	start := time.Now()
+
+	reply := &pb.HelloReply{Message: "Hello " + in.GetName()}
+
+	duration := time.Since(start).Seconds()
+	requestsProcessed.WithLabelValues("SayHello").Inc()
+	requestDuration.WithLabelValues("SayHello").Observe(duration)
+
+	return reply, nil
 }
 
 func main() {
 	flag.Parse()
+
+	grpc_prometheus.EnableHandlingTimeHistogram()
+
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+	)
+
+	pb.RegisterGreeterServer(s, &server{})
+	reflection.Register(s)
+	grpc_prometheus.Register(s)
+
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+
+		log.Printf("Starting metrics server on :%d", *metricsPort)
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", *metricsPort), mux); err != nil {
+			log.Fatalf("Failed to start metrics server: %v", err)
+		}
+	}()
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
+
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
