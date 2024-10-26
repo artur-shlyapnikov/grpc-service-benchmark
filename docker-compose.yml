@@ -2,7 +2,7 @@ services:
   grpc-server:
     build: .
     ports:
-      - "50051:50051"
+      - "50052:50051"
       - "2112:2112"
     deploy:
       resources:
