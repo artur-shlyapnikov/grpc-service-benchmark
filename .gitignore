@@ -1,0 +1,24 @@
+# Project specific
+grpc-go/
+grpc-perf-lab/tmp/
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS specific
+.DS_Store
+
+# Build artifacts
+grpc-perf-lab/bin/
