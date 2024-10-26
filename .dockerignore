@@ -1,0 +1,79 @@
+# Go build artifacts and dependencies
+bin/
+tmp/
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go coverage and test files
+coverage.txt
+coverage.html
+*.cover
+*.prof
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*~
+
+# Environment and configuration
+.env
+.env.*
+*.env
+.config/
+
+# Build and deployment
+Dockerfile*
+docker-compose*.yml
+*.dockerfile
+.docker/
+
+# Documentation
+docs/
+*.md
+LICENSE
+architecture-decision-records/
+
+# Project specific
+config/grafana/
+config/influxdb/
+config/prometheus/
+scripts/
+templates/
+tools.mk
+
+# Test and benchmark data
+benchmarks/
+*.bench
+test/
+
+# Monitoring and logging
+*.log
+logs/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Keep essential files
+!grpc-perf-lab/go.mod
+!grpc-perf-lab/go.sum
+!grpc-perf-lab/helloworld/
+!grpc-perf-lab/greeter_server/
+!grpc-perf-lab/greeter_client/

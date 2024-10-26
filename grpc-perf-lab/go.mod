@@ -1,6 +1,8 @@
 module grpc-perf-lab
 
-go 1.23.2
+go 1.22.7
+
+toolchain go1.23.2
 
 require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
