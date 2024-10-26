@@ -4,22 +4,62 @@ DOCKER_COMPOSE=docker compose
 BUILD_DIR=$(PROJECT_NAME)/bin
 DOCKER_PROJECT_PREFIX=grpc-perf-lab
 
+# directory structure
+CONFIG_DIR=config
+GRAFANA_DIR=$(CONFIG_DIR)/grafana
+PROMETHEUS_DIR=$(CONFIG_DIR)/prometheus
+INFLUXDB_DIR=$(CONFIG_DIR)/influxdb
+
+# colors for better output
 COLOR_RESET=\033[0m
 COLOR_BLUE=\033[34m
 COLOR_GREEN=\033[32m
+COLOR_RED=\033[31m
+COLOR_YELLOW=\033[33m
 
-.PHONY: all init build test clean docker-up docker-down help install-tools
+.PHONY: all init build test clean docker-up docker-down help install-tools setup validate-env
 
 all: help
 
-install-tools:
+setup:
+	@echo "$(COLOR_BLUE)Setting up project directory structure...$(COLOR_RESET)"
+	@mkdir -p $(GRAFANA_DIR)/provisioning/datasources
+	@mkdir -p $(GRAFANA_DIR)/provisioning/dashboards
+	@mkdir -p $(GRAFANA_DIR)/dashboards
+	@mkdir -p $(PROMETHEUS_DIR)
+	@mkdir -p $(INFLUXDB_DIR)
+	@echo "$(COLOR_GREEN)Directory structure created$(COLOR_RESET)"
+	@# Copy default configs if they don't exist
+	@if [ ! -f $(PROMETHEUS_DIR)/prometheus.yml ]; then \
+		echo "$(COLOR_BLUE)Creating default Prometheus config...$(COLOR_RESET)"; \
+		cp templates/prometheus.yml $(PROMETHEUS_DIR)/; \
+	fi
+	@if [ ! -f $(GRAFANA_DIR)/provisioning/datasources/datasources.yml ]; then \
+		echo "$(COLOR_BLUE)Creating default Grafana datasource config...$(COLOR_RESET)"; \
+		cp templates/datasources.yml $(GRAFANA_DIR)/provisioning/datasources/; \
+	fi
+	@echo "$(COLOR_GREEN)Setup complete!$(COLOR_RESET)"
+
+validate-env:
+	@echo "$(COLOR_BLUE)Validating environment...$(COLOR_RESET)"
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "$(COLOR_RED)Error: docker is not installed$(COLOR_RESET)" >&2; \
+		exit 1; \
+	fi
+	@if ! command -v docker compose >/dev/null 2>&1; then \
+		echo "$(COLOR_RED)Error: docker compose is not installed$(COLOR_RESET)" >&2; \
+		exit 1; \
+	fi
+	@echo "$(COLOR_GREEN)Environment validation passed$(COLOR_RESET)"
+
+install-tools: validate-env
 	@echo "$(COLOR_BLUE)Installing required tools...$(COLOR_RESET)"
 	@./scripts/install-tools.sh
 
-init: install-tools
+init: install-tools setup
 	@echo "$(COLOR_BLUE)Initializing project...$(COLOR_RESET)"
 	@if [ -d "$(PROJECT_NAME)" ]; then \
-		echo "Project directory already exists"; \
+		echo "$(COLOR_YELLOW)Project directory already exists$(COLOR_RESET)"; \
 	else \
 		git clone -b $(GRPC_VERSION) --depth 1 https://github.com/grpc/grpc-go && \
 		mkdir -p $(PROJECT_NAME) && \
@@ -40,13 +80,11 @@ build:
 	go build -v -o bin/client ./greeter_client && \
 	echo "$(COLOR_GREEN)Build complete$(COLOR_RESET)"
 
-
-
 test:
 	@echo "$(COLOR_BLUE)Running tests...$(COLOR_RESET)"
 	@cd $(PROJECT_NAME) && go test -v ./...
 
-docker-up:
+docker-up: validate-env setup
 	@echo "$(COLOR_BLUE)Starting Docker services...$(COLOR_RESET)"
 	@$(DOCKER_COMPOSE) up -d
 
@@ -66,7 +104,12 @@ docker-clean: ## clean only docker resources related to this project
 	@docker images --filter "reference=$(DOCKER_PROJECT_PREFIX)*" -q | xargs -r docker rmi
 	@echo "$(COLOR_GREEN)Docker resources cleaned$(COLOR_RESET)"
 
-deep-clean: clean docker-clean ## clean everything including build artifacts and docker resources
+config-clean: ## clean configuration directories
+	@echo "$(COLOR_BLUE)Cleaning configuration directories...$(COLOR_RESET)"
+	@rm -rf $(CONFIG_DIR)
+	@echo "$(COLOR_GREEN)Configuration directories cleaned$(COLOR_RESET)"
+
+deep-clean: clean docker-clean config-clean ## clean everything including build artifacts and docker resources
 	@echo "$(COLOR_GREEN)Deep clean complete$(COLOR_RESET)"
 
 proto:
@@ -83,12 +126,14 @@ lint:
 
 help:
 	@echo "Available targets:"
+	@echo "  setup        - Create necessary directory structure and configs"
 	@echo "  init         - Initialize project (clone gRPC example and setup)"
 	@echo "  build        - Build the project"
 	@echo "  test         - Run tests"
 	@echo "  docker-up    - Start Docker services"
 	@echo "  docker-down  - Stop Docker services"
 	@echo "  clean        - Clean build artifacts only"
+	@echo "  config-clean - Clean configuration directories"
 	@echo "  docker-clean - Clean docker resources for this project"
-	@echo "  deep-clean   - Clean everything (artifacts + docker)"
+	@echo "  deep-clean   - Clean everything (artifacts + docker + config)"
 	@echo "  proto        - Generate proto files"
