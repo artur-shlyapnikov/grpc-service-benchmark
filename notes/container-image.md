@@ -1,4 +1,4 @@
-# ADR-01: Container image for gRPC Service
+# Container image for gRPC Service
 
 ## Context
 
@@ -15,8 +15,8 @@ Use multi-stage build with following specifications:
 
 1. Base Images:
 
-- Build: golang:1.21-alpine
-- Runtime: alpine:3.18
+- Build: golang:1.22.7-alpine
+- Runtime: alpine:3.19
 
 2. Build Stage:
 
@@ -36,10 +36,10 @@ Use multi-stage build with following specifications:
 
 ### Positive
 
-- Reduced attack surface
 - Decreased image size
 - Reproducible builds
 - No runtime dependency on protobuf tools
+- (in production env) Reduced attack surface
 
 ### Negative
 
