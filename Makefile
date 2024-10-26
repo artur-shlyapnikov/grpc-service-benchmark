@@ -17,7 +17,7 @@ COLOR_GREEN=\033[32m
 COLOR_RED=\033[31m
 COLOR_YELLOW=\033[33m
 
-.PHONY: all init build test clean docker-up docker-down help install-tools setup validate-env
+.PHONY: all init build test clean docker-up docker-down help install-tools setup validate-env lint check-monitoring
 
 all: help
 
@@ -119,7 +119,11 @@ proto:
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		helloworld/helloworld.proto
 
-.PHONY: lint
+check-monitoring:
+	@echo "$(COLOR_BLUE)Checking monitoring setup...$(COLOR_RESET)"
+	@chmod +x ./scripts/check-monitoring.sh
+	@./scripts/check-monitoring.sh || (echo "$(COLOR_RED)Monitoring check failed. Run 'make docker-up' and try again$(COLOR_RESET)" && exit 1)
+
 lint:
 	@echo "$(COLOR_BLUE)Running linter...$(COLOR_RESET)"
 	@golangci-lint run ./...
