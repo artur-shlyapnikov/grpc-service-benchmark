@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.22.7-alpine AS builder
 
 # install required packages in a single layer
 RUN apk add --no-cache git protobuf-dev && \
@@ -7,10 +7,10 @@ RUN apk add --no-cache git protobuf-dev && \
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+COPY grpc-perf-lab/go.mod grpc-perf-lab/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY grpc-perf-lab/ .
 
 # generate gRPC code and build in a single layer
 RUN protoc --go_out=. --go_opt=paths=source_relative \
@@ -19,7 +19,7 @@ RUN protoc --go_out=. --go_opt=paths=source_relative \
     CGO_ENABLED=0 GOOS=linux go build -o /go/bin/server greeter_server/main.go
 
 # final stage
-FROM alpine:3.18
+FROM alpine:3.19
 
 # add non-root user
 RUN adduser -D appuser
