@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "grpc-server"
+    static_configs:
+      - targets: ["grpc-server:2112"]
+    metrics_path: "/metrics"
+
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metrics_path: "/metrics"
+    scrape_interval: 5s
+
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+    metrics_path: "/metrics"
+    scrape_interval: 5s
+
+  # TODO: add this when we setup load testing
+  - job_name: "k6"
+    static_configs:
+      - targets: ["k6:5656"]
+    metrics_path: "/metrics"
