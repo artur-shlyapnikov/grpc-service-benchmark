@@ -28,16 +28,25 @@ setup:
 	@mkdir -p $(GRAFANA_DIR)/dashboards
 	@mkdir -p $(PROMETHEUS_DIR)
 	@mkdir -p $(INFLUXDB_DIR)
+	@mkdir -p templates
 	@echo "$(COLOR_GREEN)Directory structure created$(COLOR_RESET)"
-	@# Copy default configs if they don't exist
-	@if [ ! -f $(PROMETHEUS_DIR)/prometheus.yml ]; then \
-		echo "$(COLOR_BLUE)Creating default Prometheus config...$(COLOR_RESET)"; \
-		cp templates/prometheus.yml $(PROMETHEUS_DIR)/; \
+
+	@# Create default configs if they don't exist
+	@if [ ! -f templates/prometheus.yml ]; then \
+		echo "$(COLOR_BLUE)Creating default Prometheus template...$(COLOR_RESET)"; \
+		cp prometheus.yml templates/; \
 	fi
-	@if [ ! -f $(GRAFANA_DIR)/provisioning/datasources/datasources.yml ]; then \
-		echo "$(COLOR_BLUE)Creating default Grafana datasource config...$(COLOR_RESET)"; \
-		cp templates/datasources.yml $(GRAFANA_DIR)/provisioning/datasources/; \
+
+	@if [ ! -f templates/datasources.yml ]; then \
+		echo "$(COLOR_BLUE)Creating default Grafana datasource template...$(COLOR_RESET)"; \
+		echo 'apiVersion: 1\n\ndatasources:\n  - name: Prometheus\n    type: prometheus\n    access: proxy\n    url: http://prometheus:9090\n    isDefault: true\n\n  - name: InfluxDB\n    type: influxdb\n    access: proxy\n    url: http://influxdb:8086\n    jsonData:\n      version: Flux\n      organization: performance-testing\n      defaultBucket: k6\n      tlsSkipVerify: true\n    secureJsonData:\n      token: my-super-secret-auth-token' > templates/datasources.yml; \
 	fi
+
+	@# Copy templates to config directories
+	@echo "$(COLOR_BLUE)Copying configuration files...$(COLOR_RESET)"
+	@cp templates/prometheus.yml $(PROMETHEUS_DIR)/
+	@cp templates/datasources.yml $(GRAFANA_DIR)/provisioning/datasources/
+
 	@echo "$(COLOR_GREEN)Setup complete!$(COLOR_RESET)"
 
 validate-env:
