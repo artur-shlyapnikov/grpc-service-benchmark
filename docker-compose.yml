@@ -2,7 +2,7 @@ services:
   grpc-server:
     build: .
     ports:
-      - "50052:50051"
+      - "50052:50051" # I have a macOS system daemon that uses this port
       - "2112:2112"
     deploy:
       resources:

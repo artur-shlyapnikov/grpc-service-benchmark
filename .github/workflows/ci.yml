@@ -11,3 +11,12 @@ jobs:
           go-version: "1.21"
       - name: Build
         run: make build
+
+      - name: Build docker image
+        run: docker build . --file Dockerfile --tag grpc-server:test
+
+      - name: Smoke test docker image
+        run: |
+          docker run -d -p 50051:50051 -p 2112:2112 --name grpc-server grpc-server:test
+          sleep 5
+          curl -f http://localhost:2112/metrics || exit 1
