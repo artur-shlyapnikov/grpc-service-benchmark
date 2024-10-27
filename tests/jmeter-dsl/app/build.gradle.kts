@@ -10,23 +10,28 @@ version = "1.0-SNAPSHOT"
 repositories {
     mavenCentral()
     maven { url = uri("https://jitpack.io") }
-    // Add Apache repository
     maven { url = uri("https://repository.apache.org/content/repositories/releases/") }
 }
 
+
 dependencies {
     // JMeter DSL with BOM exclusion
-    testImplementation("us.abstracta.jmeter:jmeter-java-dsl:1.29.1") {
+    implementation("us.abstracta.jmeter:jmeter-java-dsl:1.29.1") {
         exclude("org.apache.jmeter", "bom")
     }
+    implementation("org.apache.jmeter:ApacheJMeter_core:5.6.3")
+    implementation("org.apache.jmeter:ApacheJMeter_java:5.6.3")
 
     // gRPC dependencies
-    implementation("io.grpc:grpc-netty-shaded:1.58.0")
-    implementation("io.grpc:grpc-protobuf:1.58.0")
-    implementation("io.grpc:grpc-stub:1.58.0")
+    implementation(platform("io.grpc:grpc-bom:1.58.0"))
 
-    // for proto compilation
-    implementation("com.google.protobuf:protobuf-java:3.24.0")
+    implementation("io.grpc:grpc-netty-shaded")
+    implementation("io.grpc:grpc-protobuf")
+    implementation("io.grpc:grpc-stub")
+
+    implementation("com.google.protobuf:protobuf-java:4.28.3")
+    implementation("com.google.protobuf:protobuf-java-util:4.28.3")
+
 
     // testing dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.0")
@@ -38,8 +43,9 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:1.18.30")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.30")
 
-    implementation("org.slf4j:slf4j-api:2.0.9")
+    implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("ch.qos.logback:logback-classic:1.4.11")
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
 
 }
 
@@ -54,7 +60,7 @@ tasks {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.24.0"
+        artifact = "com.google.protobuf:protoc:4.28.3"
     }
     plugins {
         create("grpc") {
@@ -65,6 +71,14 @@ protobuf {
         all().forEach {
             it.plugins {
                 create("grpc")
+            }
+        }
+    }
+    sourceSets {
+        main {
+            proto {
+                // outside of the java project
+                srcDir("../../../grpc-perf-lab/helloworld")
             }
         }
     }
