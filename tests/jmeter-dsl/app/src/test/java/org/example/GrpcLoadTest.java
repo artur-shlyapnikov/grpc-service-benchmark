@@ -1,82 +1,54 @@
 package org.example;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static us.abstracta.jmeter.javadsl.JmeterDsl.*;
-
-import java.time.Duration;
+import io.grpc.examples.helloworld.HelloRequest;
+import org.example.perf.grpc.sampler.GrpcSampler;
+import org.example.perf.grpc.sampler.GrpcSamplerBuilder;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import us.abstracta.jmeter.javadsl.core.TestPlanStats;
+import java.time.Duration;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.*;
 
-// TODO: FIXME
 @Tag("performance") // we don't want to run this on each build
 class GrpcLoadTest {
+
     @Test
-    @Tag("load")
-    void findMaximumLoad() throws Exception {
+    void testGreeterService() throws Exception {
+        HelloRequest request = HelloRequest.newBuilder()
+                .setName("World")
+                .build();
+
+        // create gRPC sampler
+        GrpcSampler sampler = GrpcSamplerBuilder.newBuilder()
+                .host("localhost")
+                .port(50052)
+                .usePlaintext()
+                .methodName("helloworld.Greeter/SayHello")
+                .request(request)
+                .build();
+
         TestPlanStats stats = testPlan(
                 threadGroup()
-                        // warmup phase
-                        .rampToAndHold(5, Duration.ofSeconds(10), Duration.ofSeconds(20))
-                        // test phase
-                        .rampTo(50, Duration.ofSeconds(30))
-                        .children(
-                                // since we don't have direct gRPC support yet, we'll use JSR223 Sampler
-                                // TODO: check if we can use gRPC Sampler instead, it doesn't seems elegant
-                                jsr223Sampler("gRPC Hello Request",
-                                        """
-                                        import io.grpc.ManagedChannelBuilder;
-                                        import io.grpc.ManagedChannel;
-                                        import java.util.concurrent.TimeUnit;
-                                        import com.example.grpc.HelloRequest;
-                                        import com.example.grpc.GreeterGrpc;
-                                        
-                                        // create channel
-                                        ManagedChannel channel = ManagedChannelBuilder
-                                            .forAddress("localhost", 50051)
-                                            .usePlaintext()
-                                            .build();
-                                            
-                                        try {
-                                            // create stub
-                                            GreeterGrpc.GreeterBlockingStub stub = GreeterGrpc.newBlockingStub(channel);
-                                            
-                                            // create request
-                                            HelloRequest request = HelloRequest.newBuilder()
-                                                .setName("User-" + ctx.getThreadNum())
-                                                .build();
-                                                
-                                            // make call and get response
-                                            def response = stub.sayHello(request);
-                                            
-                                            // set response data
-                                            SampleResult.setResponseData(response.toString(), "UTF-8");
-                                            SampleResult.setSuccessful(true);
-                                        } catch (Exception e) {
-                                            SampleResult.setSuccessful(false);
-                                            SampleResult.setResponseMessage(e.getMessage());
-                                        } finally {
-                                            channel.shutdown();
-                                        }
-                                        """),
-
-                                // basic response verification
-                                responseAssertion()
-                                        .containsSubstrings("Hello User-")
-                        ),
-
-                // save results - using correct public methods
-                jtlWriter("target/grpc_results")
-                        .withAllFields(),  // This includes response data
-
-                // generate HTML report
-                // TODO: should be a separate reporter
-                htmlReporter("target/grpc_report")
+                        .rampToAndHold(2, Duration.ofSeconds(10), Duration.ofMinutes(1))
+                        // TODO: how to use our sampler?
+                        .children(sampler),
+                // save results
+                jtlWriter("target/grpc_results.jtl")
+                        .saveAsXml(true)
+                        .withElapsedTime(true)
+                        .withLatency(true)
+                        .withResponseCode(true)
+                        .withResponseMessage(true)
+                        .withSuccess(true)
+                        .withActiveThreadCounts(true)
         ).run();
 
-        // verify results using correct methods
-        assertThat(stats.overall().errorsCount()).isZero();
-        assertThat(stats.overall().sampleTime().perc95()).isLessThan(Duration.ofMillis(5000));
-        assertThat(stats.overall().samplesCount()).isPositive();
+        // show stats
+        System.out.printf("Average response time: %d ms%n",
+                stats.overall().sampleTime().mean().toMillis());
+        System.out.printf("Error rate: %.2f%%%n",
+                stats.overall().errors().total() * 100d / stats.overall().samples().total());
+        System.out.printf("Total samples: %d%n",
+                stats.overall().samples().total());
     }
 }

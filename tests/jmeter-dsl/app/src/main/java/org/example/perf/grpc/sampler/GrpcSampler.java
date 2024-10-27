@@ -1,8 +1,10 @@
 package org.example.perf.grpc.sampler;
 
 import com.google.protobuf.Message;
-
 import io.grpc.ManagedChannel;
+import io.grpc.examples.helloworld.GreeterGrpc;
+import io.grpc.examples.helloworld.HelloRequest;
+import io.grpc.examples.helloworld.HelloReply;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
@@ -24,24 +26,29 @@ public class GrpcSampler extends AbstractJavaSamplerClient {
         result.sampleStart();
 
         try {
-            // measure time
             long startTime = System.nanoTime();
 
-            // here we can call gRPC method
-            Message response = executeGrpcCall();
+            HelloReply response = executeGrpcCall();
 
             long endTime = System.nanoTime();
 
+            // store request data
+            result.setSamplerData(request.toString());
             result.setSuccessful(true);
             result.setResponseCodeOK();
             result.setResponseMessage("OK");
             result.setResponseData(response.toString().getBytes());
             result.setLatency(endTime - startTime);
 
+            // add GRPC-specific data
+            result.setRequestHeaders("gRPC method: " + request.getMethodName());
+            result.setDataType("grpc");
+
         } catch (Exception e) {
             result.setSuccessful(false);
-            result.setResponseCode("500");
+            result.setResponseCode("ERROR");
             result.setResponseMessage(e.getMessage());
+            log.error("Error executing gRPC call", e);
         } finally {
             result.sampleEnd();
         }
@@ -49,9 +56,23 @@ public class GrpcSampler extends AbstractJavaSamplerClient {
         return result;
     }
 
-    private Message executeGrpcCall() {
-        // TODO: реализовать вызов gRPC метода
-        throw new UnsupportedOperationException("Not implemented yet");
+    private HelloReply executeGrpcCall() {
+        // create stub
+        GreeterGrpc.GreeterBlockingStub blockingStub = GreeterGrpc.newBlockingStub(channel);
+
+        // set deadline if specified
+        if (request.getDeadline() != null) {
+            blockingStub = blockingStub.withDeadlineAfter(
+                    request.getDeadline().toMillis(),
+                    TimeUnit.MILLISECONDS
+            );
+        }
+
+        // cast protobuf request to specific type
+        HelloRequest helloRequest = (HelloRequest) request.getRequest();
+
+        // make call
+        return blockingStub.sayHello(helloRequest);
     }
 
     @Override
