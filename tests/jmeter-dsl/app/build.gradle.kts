@@ -4,7 +4,7 @@ plugins {
     id("com.google.protobuf") version "0.9.4"
 }
 
-group = "com.grpcperf"
+group = "org.example"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -95,9 +95,9 @@ tasks.register<Test>("runLoadTest") {
     description = "Runs load tests"
     group = "verification"
     useJUnitPlatform {
-        includeTags("load", "performance")
+        includeTags("load")
     }
-    maxHeapSize = "1g"
+    maxHeapSize = "2g"
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true
@@ -110,7 +110,7 @@ tasks.register<Test>("runReliabilityTest") {
     useJUnitPlatform {
         includeTags("reliability")
     }
-    maxHeapSize = "1g"
+    maxHeapSize = "2g"
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true

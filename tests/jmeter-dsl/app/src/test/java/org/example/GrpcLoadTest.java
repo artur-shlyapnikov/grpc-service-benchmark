@@ -9,7 +9,7 @@ import java.time.Duration;
 import static org.example.perf.grpc.sampler.DslGrpcSampler.grpcSampler;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.*;
 
-@Tag("performance") // we don't want to run this on each build
+@Tag("load") // we don't want to run this on each build
 class GrpcLoadTest {
 
     @Test
