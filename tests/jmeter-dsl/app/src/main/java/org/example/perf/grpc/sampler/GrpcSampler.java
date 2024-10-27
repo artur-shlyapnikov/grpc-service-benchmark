@@ -1,6 +1,5 @@
 package org.example.perf.grpc.sampler;
 
-import com.google.protobuf.Message;
 import io.grpc.ManagedChannel;
 import io.grpc.examples.helloworld.GreeterGrpc;
 import io.grpc.examples.helloworld.HelloRequest;
