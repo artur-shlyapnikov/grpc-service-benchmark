@@ -1,4 +1,4 @@
-# Container image for gRPC Service
+# ADR-01: Container image for gRPC Service
 
 ## Context
 
