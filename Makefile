@@ -9,6 +9,7 @@ CONFIG_DIR=config
 GRAFANA_DIR=$(CONFIG_DIR)/grafana
 PROMETHEUS_DIR=$(CONFIG_DIR)/prometheus
 INFLUXDB_DIR=$(CONFIG_DIR)/influxdb
+CHAOS_DIR=chaos-testing
 
 # colors for better output
 COLOR_RESET=\033[0m
@@ -17,7 +18,7 @@ COLOR_GREEN=\033[32m
 COLOR_RED=\033[31m
 COLOR_YELLOW=\033[33m
 
-.PHONY: all init build test clean docker-up docker-down help install-tools setup validate-env lint check-monitoring
+.PHONY: all init build test clean docker-up docker-down help install-tools setup validate-env lint check-monitoring run-chaos stop-chaos
 
 all: help
 
@@ -137,6 +138,36 @@ lint:
 	@echo "$(COLOR_BLUE)Running linter...$(COLOR_RESET)"
 	@golangci-lint run ./...
 
+run-chaos: docker-up check-monitoring
+	@echo "$(COLOR_YELLOW)WARNING: Chaos testing will introduce deliberate failures$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)Starting chaos testing...$(COLOR_RESET)"
+	@if [ ! -x $(CHAOS_DIR)/chaos-toolkit.sh ]; then \
+		echo "$(COLOR_RED)Error: $(CHAOS_DIR)/chaos-toolkit.sh not found or not executable$(COLOR_RESET)" >&2; \
+		exit 1; \
+	fi
+	@if ! docker ps --format '{{.Names}}' | grep -q "^$(DOCKER_PROJECT_PREFIX)"; then \
+		echo "$(COLOR_RED)Error: Project containers not running. Run 'make docker-up' first$(COLOR_RESET)" >&2; \
+		exit 1; \
+	fi
+	@if [ ! -f /var/run/chaos-monkey.pid ]; then \
+		sudo CONTAINER_NAME=$(DOCKER_PROJECT_PREFIX)_grpc-server_1 $(CHAOS_DIR)/chaos-toolkit.sh & \
+		echo $$! | sudo tee /var/run/chaos-monkey.pid > /dev/null; \
+		echo "$(COLOR_GREEN)Chaos testing started with PID $$(cat /var/run/chaos-monkey.pid)$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_YELLOW)Chaos testing already running with PID $$(cat /var/run/chaos-monkey.pid)$(COLOR_RESET)"; \
+	fi
+
+stop-chaos:
+	@echo "$(COLOR_BLUE)Stopping chaos testing...$(COLOR_RESET)"
+	@if [ -f /var/run/chaos-monkey.pid ]; then \
+		sudo kill $$(cat /var/run/chaos-monkey.pid) 2>/dev/null || true; \
+		sudo rm -f /var/run/chaos-monkey.pid; \
+		echo "$(COLOR_GREEN)Chaos testing stopped$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_YELLOW)No running chaos testing found$(COLOR_RESET)"; \
+	fi
+
+
 help:
 	@echo "Available targets:"
 	@echo "  setup        - Create necessary directory structure and configs"
@@ -150,3 +181,5 @@ help:
 	@echo "  docker-clean - Clean docker resources for this project"
 	@echo "  deep-clean   - Clean everything (artifacts + docker + config)"
 	@echo "  proto        - Generate proto files"
+	@echo "  run-chaos    - Start chaos testing (requires sudo)"
+	@echo "  stop-chaos   - Stop chaos testing (requires sudo)"
