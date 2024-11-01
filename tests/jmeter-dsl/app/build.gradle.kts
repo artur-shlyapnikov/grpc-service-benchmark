@@ -11,6 +11,8 @@ repositories {
     mavenCentral()
     maven { url = uri("https://jitpack.io") }
     maven { url = uri("https://repository.apache.org/content/repositories/releases/") }
+    // JMeter plugins repo
+    maven { url = uri("https://jmeter-plugins.org/repo/") }
 }
 
 
@@ -48,6 +50,8 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.4.11")
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 
+    // InfluxDB2 listener
+    implementation("io.github.mderevyankoaqa:jmeter-plugins-influxdb2-listener:2.8")
 }
 
 tasks {

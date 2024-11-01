@@ -19,6 +19,10 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+    labels:
+      - "com.docker.compose.service=grpc-server"
+      - "com.docker.compose.project=instrumented-grpc-service-benchmark"
+      - "monitoring.service=grpc-server"
 
   prometheus:
     image: prom/prometheus:v2.55.0
@@ -54,11 +58,13 @@ services:
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      - prometheus
-      - influxdb
+      prometheus:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
     networks:
       - monitoring
     healthcheck:
@@ -76,17 +82,18 @@ services:
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
       - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
       - DOCKER_INFLUXDB_INIT_ORG=performance-testing
-      - DOCKER_INFLUXDB_INIT_BUCKET=k6
+      - DOCKER_INFLUXDB_INIT_BUCKET=perf-tests
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token
     volumes:
       - influxdb-data:/var/lib/influxdb2
       - influxdb-config:/etc/influxdb2
     networks:
       - monitoring
+      - default
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
           cpus: "1"
         reservations:
           memory: 512M
@@ -101,10 +108,20 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+      # for macOS Docker Desktop
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - "--docker_only=true"
+      - "--enable_load_reader=true"
+      - "--store_container_labels=true"
+      - "--docker_env_metadata_whitelist=.*"
+      - "--housekeeping_interval=5s"
+      - "--disable_metrics=advtcp,accelerator,cpu_topology,resctrl,tcp,udp,percpu,sched,process,hugetlb,referenced_memory"
+    privileged: true
     ports:
       - "8080:8080"
     networks:
@@ -142,6 +159,25 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+
+  k6:
+    image: grafana/k6:0.54.0
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=my-super-secret-auth-token
+      - INFLUXDB_ORG=performance-testing
+      - INFLUXDB_BUCKET=perf-tests
+    volumes:
+      - ./tests/k6:/scripts
+      - ./grpc-perf-lab/helloworld:/scripts/proto:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      grpc-server:
+        condition: service_healthy
+    networks:
+      - monitoring
+      - default
 
 networks:
   monitoring:

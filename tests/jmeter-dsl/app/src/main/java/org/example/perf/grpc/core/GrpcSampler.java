@@ -47,9 +47,18 @@ public class GrpcSampler<REQ extends Message, RES extends Message> extends Abstr
 
             ManagedChannelBuilder<?> channelBuilder = ManagedChannelBuilder
                     .forAddress(host, port)
-                    .keepAliveTime(30, TimeUnit.SECONDS)
-                    .keepAliveTimeout(10, TimeUnit.SECONDS)
-                    .keepAliveWithoutCalls(true);
+                    .keepAliveTime(120, TimeUnit.SECONDS)
+                    .keepAliveTimeout(30, TimeUnit.SECONDS)
+                    // only send keepalive when there are active RPCs
+                    .keepAliveWithoutCalls(false)
+                    // set maximum sizes for messages and metadata
+                    .maxInboundMetadataSize(16 * 1024)
+                    .maxInboundMessageSize(16 * 1024 * 1024)
+                    // add idle timeout
+                    .idleTimeout(300, TimeUnit.SECONDS)
+                    // configure retries
+                    .enableRetry()
+                    .maxRetryAttempts(1);
 
             if (usePlaintext) {
                 channelBuilder.usePlaintext();
@@ -77,7 +86,6 @@ public class GrpcSampler<REQ extends Message, RES extends Message> extends Abstr
             throw new RuntimeException("Failed to setup gRPC sampler", e);
         }
     }
-
     @SuppressWarnings("unchecked")
     private REQ parseRequest(String requestStr, Message.Builder builder) throws Exception {
         try {

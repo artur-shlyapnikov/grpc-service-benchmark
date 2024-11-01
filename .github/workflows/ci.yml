@@ -5,12 +5,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: "1.21"
-      - name: Build grpc server
-        run: make build
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Build Go server
+        run: make build/go
+
+      - name: Build Java tests
+        run: make build/java
 
       - name: Build docker image
         run: docker build . --file Dockerfile --tag grpc-server:test

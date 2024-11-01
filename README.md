@@ -1,154 +1,128 @@
 # gRPC Performance Testing Lab
 
-[![Go Version](https://img.shields.io/badge/Go-1.22.7-blue.svg)](https://go.dev/)
-[![gRPC Version](https://img.shields.io/badge/gRPC-v1.67.1-blue.svg)](https://grpc.io/)
-[![Docker Required](https://img.shields.io/badge/Docker-Required-blue.svg)](https://www.docker.com/)
+[![gRPC Version](https://img.shields.io/badge/gRPC-v1.67.1-blue)](https://grpc.io/)
+[![JMeter DSL](https://img.shields.io/badge/JMeter-DSL-blue)](https://github.com/abstracta/jmeter-java-dsl)
+[![k6](https://img.shields.io/badge/k6-0.54.0-blue)](https://k6.io/)
 
-## Requirements
+## Prerequisites
 
-| Component | Version |
-|-----------|---------|
-| Go | ≥1.22.7 |
-| Docker | Latest |
-| Docker Compose | Latest |
-| protoc | Latest |
-| make | Latest |
+- Docker and Docker Compose
+- Make
+- Go
+- Java 21 (for JMeter DSL tests)
 
 ## Quick start
 
-1. Install tools:
-
-```bash
-make install-tools
-```
-
-2. Initialize project:
+1. Initialize the project:
 
 ```bash
 make init
-make build
 ```
 
-3. Start services:
+2. Start monitoring stack:
 
 ```bash
-make docker-up
+make docker/up
 ```
 
-4. Verify setup:
+3. Run tests:
 
 ```bash
-make check-monitoring
+# Maximum load test with JMeter DSL
+make test/max-load/jmeter
+
+# Maximum load test with k6
+make test/max-load/k6
+
+# Run complete test cycle
+make test/full-cycle
 ```
 
-## Commands
+## Makefile commands
 
 ### Setup
 
 ```bash
-# create project structure
-make setup
-
-# initialize project
-make init
-
-# generate protocol buffers
-make proto
-
-# build binaries
-make build
+make init              # Initialize project
+make build             # Build all components
+make proto             # Generate protobuf files
 ```
 
 ### Testing
 
 ```bash
-# check monitoring stack
-make check-monitoring
+make test/max-load/jmeter     # Run max load test with JMeter
+make test/max-load/k6         # Run max load test with k6
+make test/reliability/jmeter  # Run reliability test with JMeter
+make test/reliability/k6      # Run reliability test with k6
+make test/full-cycle         # Run all tests
 ```
 
 ### Infrastructure
 
 ```bash
-# start all services
-make docker-up
-
-# stop all services
-make docker-down
-```
-
-### Cleanup
-
-```bash
-# clean build artifacts
-make clean
-
-# clean docker resources
-make docker-clean
-
-# clean config directories
-make config-clean
-
-# clean everything
-make deep-clean
+make docker/up        # Start all containers
+make docker/down      # Stop all containers
+make clean            # Clean build artifacts
+make clean/docker     # Clean docker resources
+make clean/deep       # Deep clean (artifacts + docker)
 ```
 
 ## Service endpoints
 
-| Service | Port | URL | Purpose |
-|---------|------|-----|---------|
-| gRPC Server | 50052 | localhost:50052 | API endpoint |
-| Metrics | 2112 | localhost:2112/metrics | Prometheus metrics |
-| Grafana | 3000 | localhost:3000 | Metrics dashboard |
-| Prometheus | 9090 | localhost:9090 | Metrics storage |
-| InfluxDB | 8086 | localhost:8086 | k6 Results storage |
-| cAdvisor | 8080 | localhost:8080 | Container metrics |
+| Service | Port | URL |
+|---------|------|-----|
+| gRPC Server | 50052 | localhost:50052 |
+| Prometheus | 9090 | <http://localhost:9090> |
+| Grafana | 3000 | <http://localhost:3000> |
+| InfluxDB | 8086 | <http://localhost:8086> |
+| cAdvisor | 8080 | <http://localhost:8080> |
+| Node Exporter | 9100 | <http://localhost:9100> |
 
-## Resource limits
+## Resource Limits
 
 | Service | Memory | CPU |
 |---------|--------|-----|
-| gRPC Server | 2GB | 2 cores |
-| Prometheus | 1GB | - |
-| InfluxDB | 1GB | 1 core |
-| cAdvisor | 512MB | - |
-| Node Exporter | 128MB | - |
+| gRPC Server | 2G | 2 |
+| Prometheus | 1G | - |
+| InfluxDB | 2G | 1 |
+| cAdvisor | 512M | - |
+| Node Exporter | 128M | - |
 
 ## Monitoring
 
-1. Access Grafana:
-   - URL: <http://localhost:3000>
-   - Username: admin
-   - Password: admin
+Default Grafana credentials:
 
-2. View metrics:
-   - Prometheus: <http://localhost:9090>
-   - Direct metrics: <http://localhost:2112/metrics>
+- URL: <http://localhost:3000>
+- Username: admin
+- Password: admin
 
-## Troubleshooting
+### Notes on monitoring
 
-1. Service fails to start:
+While the current monitoring setup provides core metrics for CPU, RAM, and gRPC-specific indicators, in a production environment, I would extend this with detailed network stack monitoring to better identify potential bottlenecks. For this demonstration, I focused on implementing the custom gRPC sampler for JMeter DSL and core performance metrics to meet the primary objectives while maintaining reasonable delivery timeframes.
 
-```bash
-# check logs
-docker compose logs grpc-server
+## Project structure
 
-# verify ports
-netstat -tulpn | grep 50052
+```
+.
+├── config/                    # Configuration files
+│   ├── grafana/              # Grafana dashboards
+│   ├── prometheus/           # Prometheus config
+├── grpc-perf-lab/            # gRPC server
+├── tests/                    # Test files
+│   ├── jmeter-dsl/          # JMeter DSL tests
+│   └── k6/                  # k6 test scripts
+└── scripts/                  # Utility scripts
 ```
 
-2. Monitoring not working:
+## JVM options
 
-```bash
-# validate setup
-make check-monitoring
+Default JVM options for test execution:
 
-# check prometheus targets
-curl localhost:9090/api/v1/targets
 ```
-
-3. Resource limits:
-
-```bash
-# view current usage
-docker stats
+-Xmx2g -Xms2g
+-XX:MaxMetaspaceSize=512m
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=100
+-XX:+ParallelRefProcEnabled
 ```

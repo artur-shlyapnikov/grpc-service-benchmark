@@ -14,7 +14,7 @@ datasources:
     jsonData:
       version: Flux
       organization: performance-testing
-      defaultBucket: k6
+      defaultBucket: perf-tests
       tlsSkipVerify: true
     secureJsonData:
       token: my-super-secret-auth-token
