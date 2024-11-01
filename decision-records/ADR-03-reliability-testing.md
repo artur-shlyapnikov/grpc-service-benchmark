@@ -6,89 +6,76 @@ Need to define reliability testing approach for a basic gRPC hello world service
 
 ## Decision
 
-Implement a two-phase reliability testing strategy focusing on sustained load and basic monitoring:
+Implement a focused reliability testing strategy:
 
 1. Preparation Phase:
-   - Conduct [maximum load test](decision-records/ADR-02-find-maximum.md) to establish performance baseline
-   - Determine stable operating threshold (target: 80% of max throughput)
-
+   - Conduct maximum load test to establish performance baseline
+   - Use aggressive 90% of maximum load for testing due to service simplicity
 2. Reliability Test Execution:
 
    ```
-   Duration: 2 hours
-   Target Load: 80% of established maximum
-   Pattern: Constant load
+   Duration: 30 minutes
+   Target Load: 90% of established maximum
+   Pattern: Constant load after 5-minute ramp-up
    ```
 
 3. Success criteria:
-   - Error rate stays below 0.1%
-   - Response latency (p95) remains within 20% of initial baseline
-   - No memory leaks observed
-   - CPU utilization remains stable
-   - No service restarts occur
-
+   - Error rate stays below 1%
+   - P99 latency remains under 500ms
+   - Throughput variance within 10%
+   - Minimum 6 stable measurement windows required
 4. Metrics to collect:
 
    ```
    Performance Metrics:
    - Throughput (RPS)
-   - Response time (p50, p95, p99)
+   - Response time (P99)
    - Error rate
-
-   Resource Metrics:
-   - CPU usage
-   - Memory usage
-   - Goroutine count
-   - GC statistics
+   - Throughput variance
    ```
 
 ## Implementation details
 
-1. Test Scripts:
+1. Test Configuration:
 
    ```
-   JMeter DSL:
-   - Constant throughput timer
-   - 2-hour duration
-
-   k6 (comparison):
-   - Equivalent constant load scenario
-   - Same duration and metrics
+   - 5-minute ramp-up period
+   - 5-minute measurement windows
+   - Maximum 5000 threads
+   - InfluxDB metrics storage
    ```
 
-2. Monitoring:
+2. Success Criteria Details:
 
    ```
-   Prometheus queries:
-   - rate(grpc_server_handled_total[1m])
-   - histogram_quantile(0.95, rate(grpc_server_handling_seconds_bucket[1m]))
-   - process_cpu_seconds_total
-   - go_memstats_alloc_bytes
+   - MAX_ERROR_RATE: 1%
+   - MAX_P99_LATENCY: 500ms
+   - MAX_THROUGHPUT_VARIANCE: 10%
+   - REQUIRED_STABLE_WINDOWS: 6
    ```
 
 3. Reporting:
-   - Generate time-series graphs for all metrics
-   - Calculate statistical stability indicators
-   - Compare JMeter vs k6 results
-   - Document any anomalies or patterns
+   - Detailed window-by-window analysis
+   - Clear pass/fail criteria
+   - Comprehensive test results summary
 
 ## Consequences
 
 ### Positive
 
-- Simple, reproducible test scenario
-- Clear success criteria
-- Comprehensive metrics collection
-- Reasonable test duration
-- Comparable results between tools
+- More aggressive testing approach (90% of max)
+- Clear, quantifiable success criteria
+- Efficient test duration
+- Comprehensive stability verification
 
 ### Negative
 
-- May not catch all production-like scenarios
-- Limited to basic service behavior
-- No complex failure modes tested
+- Shorter duration may miss longer-term issues
+- Aggressive load target may not suit all services
+- Limited error type analysis
 
 ## Notes
 
-- Test duration (2 hours) allows for observation of memory patterns and potential resource leaks
-- Comparative testing between JMeter and k6 provides tool validation
+- 30-minute duration suits simple service characteristics
+- 90% load target reflects service stability
+- Multiple stability windows provide reliability confidence
