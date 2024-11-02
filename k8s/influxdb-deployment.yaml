@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: monitoring
+  labels:
+    app: influxdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:2.7.10
+          ports:
+            - name: http
+              containerPort: 8086
+          env:
+            - name: DOCKER_INFLUXDB_INIT_MODE
+              value: "setup"
+            - name: DOCKER_INFLUXDB_INIT_USERNAME
+              value: "admin"
+            - name: DOCKER_INFLUXDB_INIT_PASSWORD
+              value: "admin123"
+            - name: DOCKER_INFLUXDB_INIT_ORG
+              value: "performance-testing"
+            - name: DOCKER_INFLUXDB_INIT_BUCKET
+              value: "perf-tests"
+            - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+              value: "my-super-secret-auth-token"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1"
+          volumeMounts:
+            - name: influxdb-storage
+              mountPath: /var/lib/influxdb2
+      volumes:
+        - name: influxdb-storage
+          emptyDir: {}
