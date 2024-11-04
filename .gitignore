@@ -28,3 +28,6 @@ grpc-perf-lab/bin/
 build/
 !gradle-wrapper.jar
 tests/jmeter-dsl/app/target
+
+
+*.jfr

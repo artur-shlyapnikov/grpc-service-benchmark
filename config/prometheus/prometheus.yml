@@ -4,6 +4,7 @@ global:
 
 scrape_configs:
   - job_name: "grpc-server"
+    scrape_interval: 15s
     static_configs:
       - targets: ["grpc-server:2112"]
     metrics_path: "/metrics"
@@ -11,12 +12,8 @@ scrape_configs:
   - job_name: "cadvisor"
     static_configs:
       - targets: ["cadvisor:8080"]
-    metrics_path: /metrics
-    metric_relabel_configs:
-      - source_labels: [container_label_com_docker_compose_service]
-        target_label: service
-      - source_labels: [container_label_com_docker_compose_project]
-        target_label: project
+    metrics_path: "/metrics"
+    scrape_interval: 5s
 
   - job_name: "node-exporter"
     static_configs:
@@ -24,7 +21,6 @@ scrape_configs:
     metrics_path: "/metrics"
     scrape_interval: 5s
 
-  # TODO: add this when we setup load testing
   - job_name: "k6"
     static_configs:
       - targets: ["k6:5656"]

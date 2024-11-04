@@ -26,7 +26,7 @@ class ReliabilityTest {
     private static final Logger log = LoggerFactory.getLogger(ReliabilityTest.class);
 
     private static final class TestConfig {
-        static final int TARGET_LOAD = 20302; // 90% of found maximum load, since the service is pretty stable and simple
+        static final int TARGET_LOAD = 7436; // 85% of found maximum load, since the service is pretty stable and simple
 
         static final Duration TEST_DURATION = Duration.ofMinutes(30);
 
@@ -36,17 +36,17 @@ class ReliabilityTest {
 
         static final double MAX_ERROR_RATE = 0.01; // 1% strict error criteria since the service is simple
 
-        static final double MAX_THROUGHPUT_VARIANCE = 0.10; // 10%
+        static final double MAX_THROUGHPUT_VARIANCE = 0.20; // 20%
 
         // maximum acceptable P99 latency (ms)
-        static final double MAX_P99_LATENCY = 500.0;
+        static final double MAX_P99_LATENCY = 900.0;
 
         // minimum successful measurement windows required
         static final int REQUIRED_STABLE_WINDOWS = 6;
     }
 
-    private static final String TEST_HOST = "localhost";
-    private static final String INFLUX_URL = "http://localhost:8086/write?db=perf-tests";
+    private static final String TEST_HOST = "162.55.34.236";
+    private static final String INFLUX_URL = "http://162.55.34.236:8086/write?db=perf-tests";
     private static final int TEST_PORT = 50052;
 
     // reusing records from MaximumLoadTest

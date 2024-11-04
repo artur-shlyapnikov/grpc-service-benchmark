@@ -52,6 +52,10 @@ dependencies {
 
     // InfluxDB2 listener
     implementation("io.github.mderevyankoaqa:jmeter-plugins-influxdb2-listener:2.8")
+
+    implementation("io.micrometer:micrometer-registry-prometheus:1.11.5")
+    implementation("io.prometheus.jmx:jmx_prometheus_javaagent:0.20.0")
+
 }
 
 tasks {

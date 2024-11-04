@@ -1,0 +1,29 @@
+# src/test/resources/jmeter-monitoring.yaml
+rules:
+  # JVM Memory Pools
+  - pattern: "java.lang<type=MemoryPool, name=(.*)><(.*)>Usage"
+    name: jmeter_memory_pool_$2
+    labels:
+      pool: "$1"
+
+  # Thread Stats
+  - pattern: "java.lang<type=Threading><.*>"
+    name: jmeter_threads
+
+  # Garbage Collection
+  - pattern: "java.lang<type=GarbageCollector, name=(.*)><(.*)>"
+    name: jmeter_gc_$2
+    labels:
+      gc: "$1"
+
+  # Custom JMeter metrics
+  - pattern: "org.apache.jmeter<type=JMeterThread(.*)><(.*)>"
+    name: jmeter_thread_metrics
+    labels:
+      thread_type: "$1"
+      metric: "$2"
+
+  # Specific Load Test metrics
+  - pattern: "org.example.perf.grpc<type=LoadMetrics><(.*)>"
+    name: jmeter_load_test_$1
+    type: GAUGE

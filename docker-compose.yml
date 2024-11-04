@@ -23,6 +23,13 @@ services:
       - "com.docker.compose.service=grpc-server"
       - "com.docker.compose.project=instrumented-grpc-service-benchmark"
       - "monitoring.service=grpc-server"
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    sysctls:
+      net.core.somaxconn: 65535
+      net.ipv4.tcp_max_syn_backlog: 65535
 
   prometheus:
     image: prom/prometheus:v2.55.0
@@ -31,8 +38,11 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.wal-compression"
+      - "--storage.tsdb.retention.size=50GB"
+      - "--query.max-samples=100000000"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -41,7 +51,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
+          cpus: "1"
     healthcheck:
       test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -54,12 +65,16 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_LOG_LEVEL=debug # Temporarily increase logging for troubleshooting
+    user: "472" # This is the grafana user ID
     volumes:
-      - grafana-storage:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana-storage:/var/lib/grafana:rw
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       prometheus:
         condition: service_healthy
@@ -67,11 +82,18 @@ services:
         condition: service_healthy
     networks:
       - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
       timeout: 3s
       retries: 3
+      start_period: 5s
+    restart: unless-stopped
 
   influxdb:
     image: influxdb:2.7.10
@@ -84,6 +106,11 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=performance-testing
       - DOCKER_INFLUXDB_INIT_BUCKET=perf-tests
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token
+      # performance tuning parameters
+      - INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE=512m
+      - INFLUXDB_DATA_MAX_CONCURRENT_COMPACTIONS=2
+      - INFLUXDB_HTTP_MAX_BODY_SIZE=25000000
+      - INFLUXDB_HTTP_WRITE_TIMEOUT=30s
     volumes:
       - influxdb-data:/var/lib/influxdb2
       - influxdb-config:/etc/influxdb2
@@ -93,61 +120,74 @@ services:
     deploy:
       resources:
         limits:
+          memory: 4G
+          cpus: "2"
+        reservations:
           memory: 2G
           cpus: "1"
-        reservations:
-          memory: 512M
-          cpus: "0.5"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 30s
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-      # for macOS Docker Desktop
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command:
-      - "--docker_only=true"
-      - "--enable_load_reader=true"
-      - "--store_container_labels=true"
-      - "--docker_env_metadata_whitelist=.*"
-      - "--housekeeping_interval=5s"
-      - "--disable_metrics=advtcp,accelerator,cpu_topology,resctrl,tcp,udp,percpu,sched,process,hugetlb,referenced_memory"
+    container_name: cadvisor
     privileged: true
     ports:
       - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /:/rootfs:ro,rslave
+    environment:
+      - CADVISOR_HEALTHCHECK_URL=http://localhost:8080/healthz
+    command:
+      - "--docker_only=true"
+      - "--disable_metrics=disk,diskIO"
+      - "--docker_env_metadata_whitelist=.*"
+      - "--enable_metrics=cpu,memory,network"
+      - "--allow_dynamic_housekeeping=true"
+      - "--housekeeping_interval=10s"
+      - "--global_housekeeping_interval=30s"
+      - "--disable_root_cgroup_stats=false"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
     networks:
       - monitoring
     deploy:
       resources:
         limits:
           memory: 512M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 30s
+      interval: 5s
       timeout: 3s
       retries: 3
 
   node-exporter:
     image: prom/node-exporter:v1.7.0
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
     ports:
       - "9100:9100"
+    command:
+      - "--web.listen-address=:9100"
+      - "--collector.disable-defaults"
+      - "--collector.cpu"
+      - "--collector.meminfo"
+      - "--collector.loadavg"
+      - "--collector.netdev"
     networks:
       - monitoring
     deploy:
@@ -159,25 +199,6 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
-
-  k6:
-    image: grafana/k6:0.54.0
-    environment:
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=my-super-secret-auth-token
-      - INFLUXDB_ORG=performance-testing
-      - INFLUXDB_BUCKET=perf-tests
-    volumes:
-      - ./tests/k6:/scripts
-      - ./grpc-perf-lab/helloworld:/scripts/proto:ro
-    depends_on:
-      influxdb:
-        condition: service_healthy
-      grpc-server:
-        condition: service_healthy
-    networks:
-      - monitoring
-      - default
 
 networks:
   monitoring:
