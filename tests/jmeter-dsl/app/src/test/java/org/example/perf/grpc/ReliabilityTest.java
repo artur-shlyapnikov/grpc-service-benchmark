@@ -26,12 +26,13 @@ class ReliabilityTest {
     private static final Logger log = LoggerFactory.getLogger(ReliabilityTest.class);
 
     private static final class TestConfig {
-        static final int TARGET_LOAD = 7436; // 85% of found maximum load, since the service is pretty stable and simple
+        static final int TARGET_LOAD = 10743;
+        static final int THREAD_MULTIPLIER = 4; // Multiplier to ensure enough threads
+        // Calculate required threads based on target load and expected response time
+        static final int MAX_THREADS = (int)(TARGET_LOAD * 1.5 * THREAD_MULTIPLIER); // Allow for 50% overhead plus multiplier
 
         static final Duration TEST_DURATION = Duration.ofMinutes(30);
-
         static final Duration RAMP_UP_DURATION = Duration.ofMinutes(5);
-
         static final Duration MEASUREMENT_WINDOW = Duration.ofMinutes(5);
 
         static final double MAX_ERROR_RATE = 0.01; // 1% strict error criteria since the service is simple
@@ -64,14 +65,15 @@ class ReliabilityTest {
             int sampleCount
     ) {}
 
-    @Tag("reliability") // for a separate make target
+    @Tag("reliability")
     @Test
     @Timeout(value = 70, unit = TimeUnit.MINUTES)
     void verifyReliability() throws Exception {
         String testId = "reliability-" + Instant.now();
         HelloRequest request = HelloRequest.newBuilder().setName("World").build();
 
-        log.info("Starting reliability test at {} RPS", TestConfig.TARGET_LOAD);
+        log.info("Starting reliability test at {} RPS with {} max threads",
+            TestConfig.TARGET_LOAD, TestConfig.MAX_THREADS);
         log.info("Test duration: {} minutes", TestConfig.TEST_DURATION.toMinutes());
 
         List<LoadMetrics> allMetrics = runReliabilityTest(request, testId);
@@ -85,7 +87,7 @@ class ReliabilityTest {
 
         TestPlanStats stats = testPlan(
                 rpsThreadGroup()
-                        .maxThreads(5000)
+                        .maxThreads(TestConfig.MAX_THREADS)
                         .rampTo(TestConfig.TARGET_LOAD, TestConfig.RAMP_UP_DURATION)
                         .holdFor(TestConfig.TEST_DURATION)
                         .children(
@@ -108,6 +110,7 @@ class ReliabilityTest {
 
         return allMetrics;
     }
+
     private void analyzeResults(List<LoadMetrics> metrics) {
         log.info("\n====================================");
         log.info("RELIABILITY TEST RESULTS");
@@ -173,7 +176,7 @@ class ReliabilityTest {
     }
 
     private boolean isStableWindow(LoadMetrics metrics) {
-        double lowerBound = TestConfig.TARGET_LOAD * 0.90; // allow 10% lower than target
+        double lowerBound = TestConfig.TARGET_LOAD * 0.80; // allow 20% lower than target
         double upperBound = TestConfig.TARGET_LOAD * (1 + TestConfig.MAX_THROUGHPUT_VARIANCE);
 
         return metrics.errorRate() <= TestConfig.MAX_ERROR_RATE

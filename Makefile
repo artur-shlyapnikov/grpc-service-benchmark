@@ -34,14 +34,20 @@ GRADLE_OPTS=-Dorg.gradle.parallel=true \
     -Dorg.gradle.configureondemand=true \
     -Dorg.gradle.jvmargs="$(DEFAULT_JAVA_OPTS)"
 
+# Function to generate unique JFR filename with timestamp
+JFR_FILENAME=$(JAVA_TEST_DIR)/jfr/$(1)-$(shell date +%Y%m%d_%H%M%S).jfr
+
 JFR_OPTS=-XX:+FlightRecorder \
-    -XX:StartFlightRecording=duration=180s,filename=jmeter-recording.jfr,settings=profile \
+    -XX:StartFlightRecording=duration=180s,filename=$(1),settings=profile \
     -XX:FlightRecorderOptions=stackdepth=128
 JAVA_HOME := $(shell /usr/libexec/java_home)
-JFR_FILE=$(JAVA_TEST_DIR)/jmeter-recording.jfr
 
+JFR_DIR=$(JAVA_TEST_DIR)/jfr
 
 K6_OPTS=--out influxdb=http://localhost:8086/k6
+
+# Create JFR directory during initialization
+$(shell mkdir -p $(JFR_DIR))
 
 .PHONY: all init build test clean docker-up docker-down help install-tools validate-env lint
 
@@ -155,22 +161,24 @@ test/reliability/jmeter:
 
 test/max-load/jmeter/profile:
 	@echo "$(COLOR_BLUE)Running maximum load tests with JFR profiling...$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)Using JVM options: $(JAVA_OPTS) $(JFR_OPTS)$(COLOR_RESET)"
+	$(eval JFR_OUTPUT := $(call JFR_FILENAME,max-load))
+	@echo "$(COLOR_BLUE)Using JVM options: $(JAVA_OPTS) $(call JFR_OPTS,$(JFR_OUTPUT))$(COLOR_RESET)"
 	@cd $(JAVA_TEST_DIR) && \
-	JAVA_OPTS="$(JAVA_OPTS) $(JFR_OPTS)" $(GRADLE_CMD) clean runLoadTest $(GRADLE_TEST_OPTS) --info || \
+	JAVA_OPTS="$(JAVA_OPTS) $(call JFR_OPTS,$(JFR_OUTPUT))" $(GRADLE_CMD) clean runLoadTest $(GRADLE_TEST_OPTS) --info || \
 	(echo "$(COLOR_RED)Load test failed. Check logs for details$(COLOR_RESET)" && exit 1)
 	@echo "$(COLOR_GREEN)Load tests completed successfully$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)JFR recording saved to jmeter-recording.jfr$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)JFR recording saved to $(JFR_OUTPUT)$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)To analyze, open with JDK Mission Control or use 'jfr print jmeter-recording.jfr'$(COLOR_RESET)"
 
 test/reliability/jmeter/profile:
 	@echo "$(COLOR_BLUE)Running reliability tests with JFR profiling...$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)Using JVM options: $(JAVA_OPTS) $(JFR_OPTS)$(COLOR_RESET)"
+	$(eval JFR_OUTPUT := $(call JFR_FILENAME,reliability))
+	@echo "$(COLOR_BLUE)Using JVM options: $(JAVA_OPTS) $(call JFR_OPTS,$(JFR_OUTPUT))$(COLOR_RESET)"
 	@cd $(JAVA_TEST_DIR) && \
-	JAVA_OPTS="$(JAVA_OPTS) $(JFR_OPTS)" $(GRADLE_CMD) clean runReliabilityTest $(GRADLE_TEST_OPTS) --info || \
+	JAVA_OPTS="$(JAVA_OPTS) $(call JFR_OPTS,$(JFR_OUTPUT))" $(GRADLE_CMD) clean runReliabilityTest $(GRADLE_TEST_OPTS) --info || \
 	(echo "$(COLOR_RED)Reliability test failed. Check logs for details$(COLOR_RESET)" && exit 1)
 	@echo "$(COLOR_GREEN)Reliability tests completed successfully$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)JFR recording saved to jmeter-recording.jfr$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)JFR recording saved to $(JFR_OUTPUT)$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)To analyze, open with JDK Mission Control or use 'jfr print jmeter-recording.jfr'$(COLOR_RESET)"
 
 
@@ -179,26 +187,28 @@ test/full-cycle: test/max-load/jmeter test/max-load/k6 test/reliability/jmeter t
 
 convert-jfr: ## Convert JFR recording to text format
 	@echo "$(COLOR_BLUE)Converting JFR to text formats...$(COLOR_RESET)"
-	@if [ -f $(JFR_FILE) ]; then \
-		cd $(JAVA_TEST_DIR) && \
+	@if [ -d "$(JFR_DIR)" ] && [ "$$(ls -A $(JFR_DIR))" ]; then \
+		cd $(JFR_DIR) && \
+		for jfr in *.jfr; do \
 		echo "$(COLOR_BLUE)Generating profile...$(COLOR_RESET)" && \
 		$(JAVA_HOME)/bin/java -XX:+FlightRecorder \
 			-XX:StartFlightRecording=disk=false \
 			-XX:FlightRecorderOptions=stackdepth=128 \
 			--add-exports jdk.jfr/jdk.jfr.internal.tool=ALL-UNNAMED \
 			-cp $(JAVA_HOME)/lib/jfr.jar \
-			jdk.jfr.internal.tool.Main print jmeter-recording.jfr > profile.txt && \
-		echo "$(COLOR_GREEN)Profile saved to $(JAVA_TEST_DIR)/profile.txt$(COLOR_RESET)" && \
+			jdk.jfr.internal.tool.Main print "$$jfr" > "$${jfr%.jfr}-profile.txt" && \
+		echo "$(COLOR_GREEN)Profile saved to $(JFR_DIR)/$${jfr%.jfr}-profile.txt$(COLOR_RESET)" && \
 		echo "$(COLOR_BLUE)Extracting important sections...$(COLOR_RESET)" && \
-		echo "=== CPU Usage ===" > profile-summary.txt && \
-		grep -A 20 "CPU Usage" profile.txt >> profile-summary.txt && \
-		echo "\n=== Memory Usage ===" >> profile-summary.txt && \
-		grep -A 20 "Heap Summary" profile.txt >> profile-summary.txt && \
-		echo "\n=== GC Activity ===" >> profile-summary.txt && \
-		grep -A 20 "Garbage Collection" profile.txt >> profile-summary.txt && \
-		echo "$(COLOR_GREEN)Summary saved to $(JAVA_TEST_DIR)/profile-summary.txt$(COLOR_RESET)"; \
+		echo "=== CPU Usage ===" > "$${jfr%.jfr}-summary.txt" && \
+		grep -A 20 "CPU Usage" "$${jfr%.jfr}-profile.txt" >> "$${jfr%.jfr}-summary.txt" && \
+		echo "\n=== Memory Usage ===" >> "$${jfr%.jfr}-summary.txt" && \
+		grep -A 20 "Heap Summary" "$${jfr%.jfr}-profile.txt" >> "$${jfr%.jfr}-summary.txt" && \
+		echo "\n=== GC Activity ===" >> "$${jfr%.jfr}-summary.txt" && \
+		grep -A 20 "Garbage Collection" "$${jfr%.jfr}-profile.txt" >> "$${jfr%.jfr}-summary.txt" && \
+		echo "$(COLOR_GREEN)Summary saved to $(JFR_DIR)/$${jfr%.jfr}-summary.txt$(COLOR_RESET)"; \
+		done; \
 	else \
-		echo "$(COLOR_RED)No JFR recording found at $(JFR_FILE)$(COLOR_RESET)"; \
+		echo "$(COLOR_RED)No JFR recordings found in $(JFR_DIR)$(COLOR_RESET)"; \
 	fi
 
 
