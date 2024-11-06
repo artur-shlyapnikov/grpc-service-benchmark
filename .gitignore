@@ -29,5 +29,3 @@ build/
 !gradle-wrapper.jar
 tests/jmeter-dsl/app/target
 
-
-*.jfr

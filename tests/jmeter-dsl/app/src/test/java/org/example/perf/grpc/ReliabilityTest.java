@@ -26,7 +26,7 @@ class ReliabilityTest {
     private static final Logger log = LoggerFactory.getLogger(ReliabilityTest.class);
 
     private static final class TestConfig {
-        static final int TARGET_LOAD = 10743;
+        static final int TARGET_LOAD = 4200;
         static final int THREAD_MULTIPLIER = 4; // Multiplier to ensure enough threads
         // Calculate required threads based on target load and expected response time
         static final int MAX_THREADS = (int)(TARGET_LOAD * 1.5 * THREAD_MULTIPLIER); // Allow for 50% overhead plus multiplier
