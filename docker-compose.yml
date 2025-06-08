@@ -140,6 +140,13 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  k6:
+    image: grafana/k6
+    volumes:
+      - ./tests/k6:/scripts
+    networks:
+      - monitoring
+
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: cadvisor
