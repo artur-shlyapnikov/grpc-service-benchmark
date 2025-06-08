@@ -1,6 +1,7 @@
 GRPC_VERSION=v1.67.1
 PROJECT_NAME=grpc-perf-lab
 DOCKER_COMPOSE=docker compose
+DOCKER_PROJECT_PREFIX ?= $(PROJECT_NAME)
 
 # directory structure
 CONFIG_DIR=config
