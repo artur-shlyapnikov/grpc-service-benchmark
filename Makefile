@@ -185,6 +185,9 @@ test/reliability/jmeter/profile:
 test/full-cycle: test/max-load/jmeter test/max-load/k6 test/reliability/jmeter test/reliability/k6 ## run all performance tests
 	@echo "$(COLOR_GREEN)All performance tests completed successfully$(COLOR_RESET)"
 
+# Convenience target to run the full test suite
+test: test/full-cycle ## Run all performance tests
+
 convert-jfr: ## Convert JFR recording to text format
 	@echo "$(COLOR_BLUE)Converting JFR to text formats...$(COLOR_RESET)"
 	@if [ -d "$(JFR_DIR)" ] && [ "$$(ls -A $(JFR_DIR))" ]; then \
@@ -216,7 +219,7 @@ help:
 	@echo "Available targets:"
 	@echo "  init         - Initialize project (clone gRPC example and setup)"
 	@echo "  build        - Build the project"
-	@echo "  test         - Run tests"
+	@echo "  test         - Run all performance tests"
 	@echo "  docker/up    - Start Docker services"
 	@echo "  docker/down  - Stop Docker services"
 	@echo "  clean        - Clean build artifacts only"

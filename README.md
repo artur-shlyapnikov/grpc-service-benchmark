@@ -36,6 +36,7 @@ make test/max-load/k6
 
 # Run complete test cycle
 make test/full-cycle
+make test                # Shortcut to run all tests
 ```
 
 ## Makefile commands
@@ -56,6 +57,7 @@ make test/max-load/k6         # Run max load test with k6
 make test/reliability/jmeter  # Run reliability test with JMeter
 make test/reliability/k6      # Run reliability test with k6
 make test/full-cycle         # Run all tests
+make test                    # Shortcut to run all tests
 ```
 
 ### Infrastructure
