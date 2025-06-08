@@ -68,6 +68,18 @@ make clean/docker     # Clean docker resources
 make clean/deep       # Deep clean (artifacts + docker)
 ```
 
+### Environment variables
+
+The JMeter DSL tests read the target host and InfluxDB endpoint from the
+environment or equivalent JVM system properties. By default everything runs
+locally so these variables are optional.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TEST_HOST` (`-Dtest.host`)| `localhost` | Hostname of the gRPC service |
+| `INFLUX_URL` (`-Dinflux.url`)| `http://localhost:8086/write?db=perf-tests` | URL for InfluxDB listener |
+
+
 ## Service endpoints
 
 | Service | Port | URL |

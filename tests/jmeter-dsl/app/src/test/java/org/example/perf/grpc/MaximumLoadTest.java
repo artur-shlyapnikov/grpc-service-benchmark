@@ -17,8 +17,13 @@ import us.abstracta.jmeter.javadsl.core.TestPlanStats;
 
 class MaximumLoadTest {
     private static final Logger log = LoggerFactory.getLogger(MaximumLoadTest.class);
-    private static final String TEST_HOST = "162.55.34.236";
-    private static final String INFLUX_URL = "http://162.55.34.236:8086/write?db=perf-tests";
+    private static final String TEST_HOST = System.getProperty(
+            "test.host",
+            System.getenv().getOrDefault("TEST_HOST", "localhost"));
+    private static final String INFLUX_URL = System.getProperty(
+            "influx.url",
+            System.getenv().getOrDefault("INFLUX_URL",
+                    "http://localhost:8086/write?db=perf-tests"));
     private static final int TEST_PORT = 50052;
 
     private static final class TestConfig {
