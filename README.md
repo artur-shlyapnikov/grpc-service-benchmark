@@ -86,12 +86,16 @@ locally so these variables are optional.
 
 | Service | Port | URL |
 |---------|------|-----|
-| gRPC Server | 50052 | localhost:50052 |
+| gRPC Server | 50052 (maps to 50051) | localhost:50052 |
 | Prometheus | 9090 | <http://localhost:9090> |
 | Grafana | 3000 | <http://localhost:3000> |
 | InfluxDB | 8086 | <http://localhost:8086> |
 | cAdvisor | 8080 | <http://localhost:8080> |
 | Node Exporter | 9100 | <http://localhost:9100> |
+
+Docker maps port `50052` on the host to `50051` in the container to avoid a
+local port conflict. Adjust `docker-compose.yml` if you need a different
+mapping.
 
 ## Resource Limits
 
