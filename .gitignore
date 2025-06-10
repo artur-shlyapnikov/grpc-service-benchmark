@@ -29,3 +29,6 @@ build/
 !gradle-wrapper.jar
 tests/jmeter-dsl/app/target
 
+
+# Performance recordings
+report/load-generator-utilization/*.jfr
