@@ -144,3 +144,23 @@ Default JVM options for test execution:
 -XX:MaxGCPauseMillis=100
 -XX:+ParallelRefProcEnabled
 ```
+
+## Embedding cache
+
+The project now includes a small helper to cache numpy embeddings on disk. By default data is stored in `~/.cache/grpc-service-benchmark/embeddings`, but you can override the location by setting `EMBED_CACHE_DIR`.
+
+Example usage:
+
+```python
+from sentence_transformers import SentenceTransformer
+from tools.embed_cache import load_embeddings, save_embeddings
+
+text = "hello world"
+key = text
+
+emb = load_embeddings(key)
+if emb is None:
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    emb = model.encode([text])
+    save_embeddings(key, emb)
+```
