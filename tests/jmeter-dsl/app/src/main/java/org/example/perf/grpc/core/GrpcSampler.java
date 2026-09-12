@@ -1,10 +1,7 @@
 package org.example.perf.grpc.core;
 
 import com.google.protobuf.Message;
-import com.google.protobuf.util.JsonFormat;
-import io.grpc.Metadata;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -15,86 +12,71 @@ import org.example.perf.grpc.model.GrpcRequest;
 import org.example.perf.grpc.model.GrpcResponse;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 public class GrpcSampler<REQ extends Message, RES extends Message> extends AbstractJavaSamplerClient {
+    private static final ConcurrentMap<String, Message> SHARED_REQUESTS = new ConcurrentHashMap<>();
+
     private ManagedChannel channel;
     private GrpcRequest request;
     private GrpcServiceCall<REQ, RES> serviceCall;
-    private JsonFormat.Parser jsonParser;
-    private JsonFormat.Printer jsonPrinter;
+
+    public static String shareRequest(Message request) {
+        String ref = UUID.randomUUID().toString();
+        SHARED_REQUESTS.put(ref, request);
+        return ref;
+    }
 
     @Override
     public void setupTest(JavaSamplerContext context) {
         try {
-            jsonParser = JsonFormat.parser().ignoringUnknownFields();
-            jsonPrinter = JsonFormat.printer()
-                    .includingDefaultValueFields()
-                    .omittingInsignificantWhitespace();
-
             String serviceCallClassName = context.getParameter("serviceCallClass");
             @SuppressWarnings("unchecked")
             Class<GrpcServiceCall<REQ, RES>> serviceCallClass =
                     (Class<GrpcServiceCall<REQ, RES>>) Class.forName(serviceCallClassName);
             this.serviceCall = serviceCallClass.getDeclaredConstructor().newInstance();
 
-            // setup channel
             String host = context.getParameter("host", "localhost");
             int port = context.getIntParameter("port", 50051);
             boolean usePlaintext = Boolean.parseBoolean(context.getParameter("usePlaintext", "false"));
             Duration deadline = Duration.ofMillis(context.getLongParameter("deadlineMs", 1000));
 
-            ManagedChannelBuilder<?> channelBuilder = ManagedChannelBuilder
-                    .forAddress(host, port)
-                    .keepAliveTime(120, TimeUnit.SECONDS)
-                    .keepAliveTimeout(30, TimeUnit.SECONDS)
-                    // only send keepalive when there are active RPCs
-                    .keepAliveWithoutCalls(false)
-                    // set maximum sizes for messages and metadata
-                    .maxInboundMetadataSize(16 * 1024)
-                    .maxInboundMessageSize(16 * 1024 * 1024)
-                    // add idle timeout
-                    .idleTimeout(300, TimeUnit.SECONDS)
-                    // configure retries
-                    .enableRetry()
-                    .maxRetryAttempts(1);
-
-            if (usePlaintext) {
-                channelBuilder.usePlaintext();
-            }
-
-            channel = channelBuilder.build();
+            channel = GrpcChannelFactory.create(host, port, usePlaintext);
 
             String methodName = context.getParameter("methodName");
-            String requestStr = context.getParameter("request");
+            REQ parsedRequest = resolveRequest(context, serviceCall.getRequestBuilder());
+            request = GrpcRequest.builder()
+                    .methodName(methodName)
+                    .request(parsedRequest)
+                    .deadline(deadline)
+                    .build();
 
-            if (requestStr != null && !requestStr.isEmpty()) {
-                REQ parsedRequest = parseRequest(requestStr, serviceCall.getRequestBuilder());
-                request = GrpcRequest.builder()
-                        .methodName(methodName)
-                        .request(parsedRequest)
-                        .deadline(deadline)
-                        .build();
-
-                log.info("Initialized gRPC request: method={}, request={}", methodName, requestStr);
-            } else {
-                throw new IllegalArgumentException("Request parameter is required");
-            }
+            log.info("Initialized gRPC request: method={}, request={}", methodName, parsedRequest);
         } catch (Exception e) {
             log.error("Failed to setup gRPC sampler", e);
             throw new RuntimeException("Failed to setup gRPC sampler", e);
         }
     }
+
     @SuppressWarnings("unchecked")
-    private REQ parseRequest(String requestStr, Message.Builder builder) throws Exception {
-        try {
-            jsonParser.merge(requestStr, builder);
-            return (REQ) builder.build();
-        } catch (Exception e) {
-            log.error("Failed to parse request: {}", requestStr, e);
-            throw new RuntimeException("Failed to parse request", e);
+    private REQ resolveRequest(JavaSamplerContext context, Message.Builder builder) {
+        String ref = context.getParameter("requestRef");
+        if (ref != null && !ref.isEmpty()) {
+            Message shared = SHARED_REQUESTS.get(ref);
+            if (shared != null) {
+                return (REQ) shared;
+            }
         }
+
+        String requestStr = context.getParameter("request");
+        if (requestStr != null && !requestStr.isEmpty()) {
+            return GrpcJsonCodec.parse(requestStr, builder);
+        }
+
+        throw new IllegalArgumentException("Request parameter is required");
     }
 
     @Override
@@ -103,35 +85,8 @@ public class GrpcSampler<REQ extends Message, RES extends Message> extends Abstr
         result.sampleStart();
 
         try {
-            result.setSampleLabel("gRPC Request: " + request.getMethodName());
             GrpcResponse grpcResponse = executeGrpcCall();
-
-            result.setSuccessful(grpcResponse.getStatus().isOk());
-            result.setResponseCode(grpcResponse.getStatus().getCode().name());
-            result.setResponseMessage(grpcResponse.getStatus().getDescription());
-
-            if (grpcResponse.getResponse() != null) {
-                String responseJson = jsonPrinter.print((Message) grpcResponse.getResponse());
-                result.setResponseData(responseJson.getBytes());
-            }
-
-            result.setLatency(grpcResponse.getLatencyNanos() / 1_000_000); // convert to milliseconds
-            result.setDataType("application/json");
-            result.setSamplerData(jsonPrinter.print((Message) request.getRequest()));
-            result.setRequestHeaders("gRPC method: " + request.getMethodName());
-
-            if (grpcResponse.getTrailers() != null && !grpcResponse.getTrailers().keys().isEmpty()) {
-                StringBuilder trailers = new StringBuilder();
-                for (String key : grpcResponse.getTrailers().keys()) {
-                    Metadata.Key<String> metadataKey = Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER);
-                    String value = grpcResponse.getTrailers().get(metadataKey);
-                    if (value != null) {
-                        trailers.append(key).append(": ").append(value).append("\n");
-                    }
-                }
-                result.setResponseHeaders(trailers.toString());
-            }
-
+            GrpcResultMapper.map(result, request.getMethodName(), request.getRequest(), grpcResponse);
         } catch (Exception e) {
             result.setSuccessful(false);
             result.setResponseCode("INTERNAL_ERROR");
@@ -172,14 +127,6 @@ public class GrpcSampler<REQ extends Message, RES extends Message> extends Abstr
 
     @Override
     public void teardownTest(JavaSamplerContext context) {
-        if (channel != null && !channel.isShutdown()) {
-            try {
-                channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                log.info("Successfully shut down gRPC channel");
-            } catch (InterruptedException e) {
-                log.error("Error shutting down gRPC channel", e);
-                Thread.currentThread().interrupt();
-            }
-        }
+        GrpcChannelFactory.shutdown(channel);
     }
 }

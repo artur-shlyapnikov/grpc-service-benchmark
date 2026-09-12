@@ -1,7 +1,6 @@
 package org.example.perf.grpc.core;
 
 import com.google.protobuf.Message;
-import com.google.protobuf.util.JsonFormat;
 import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.java.sampler.JavaSampler;
 import org.apache.jmeter.testelement.TestElement;
@@ -16,9 +15,6 @@ public class DslGrpcSampler<REQ extends Message, RES extends Message>
     private boolean usePlaintext = false;
     private REQ request;
     private final GrpcServiceCall<REQ, RES> serviceCall;
-    private static final JsonFormat.Printer JSON_PRINTER = JsonFormat.printer()
-            .includingDefaultValueFields()
-            .omittingInsignificantWhitespace();
 
     public DslGrpcSampler(String name, GrpcServiceCall<REQ, RES> serviceCall) {
         super(name != null ? name : "gRPC Request", TestBeanGUI.class);
@@ -62,13 +58,8 @@ public class DslGrpcSampler<REQ extends Message, RES extends Message>
         arguments.addArgument("methodName", serviceCall.getMethodName());
         arguments.addArgument("serviceCallClass", serviceCall.getClass().getName());
 
-        try {
-            if (request != null) {
-                String jsonRequest = JSON_PRINTER.print(request);
-                arguments.addArgument("request", jsonRequest);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize request", e);
+        if (request != null) {
+            arguments.addArgument("requestRef", GrpcSampler.shareRequest(request));
         }
 
         sampler.setArguments(arguments);
