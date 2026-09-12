@@ -330,6 +330,7 @@ scripts/                    Tool installation script
 - The maximum-load k6 script declares a 5% stability threshold, while
   `calculateStabilityWindow` rejects throughput spread above 10%.
 - `report/README.md` contains historical figures from an external test
-  environment. This checkout has no raw metrics or JFR files to reproduce
-  those figures. The constants in the current scenario sources are the
-  authoritative test settings for this repository.
+  environment. The raw InfluxDB metrics behind those figures are not in this
+  checkout. `report/load-generator-utilization` keeps two JFR files with
+  load-generator utilization data. The constants in the current scenario
+  sources are the authoritative test settings for this repository.
